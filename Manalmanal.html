@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lager & Angebot</title>
+<style>
+*{box-sizing:border-box;}
+body{font-family:Arial,sans-serif;margin:0;padding:20px;background:#f0f2f5;}
+.container{max-width:1400px;margin:0 auto;background:white;border-radius:8px;padding:30px;box-shadow:0 2px 10px rgba(0,0,0,0.1);}
+h1{color:#333;margin:0 0 20px 0;display:flex;justify-content:space-between;align-items:center;font-size:24px;}
+.search-box{margin-bottom:20px;padding:15px;background:#e3f2fd;border-radius:8px;border-left:4px solid #2196F3;}
+.search-box input{width:100%;padding:12px;font-size:16px;border:2px solid #2196F3;border-radius:6px;}
+.search-box input:focus{outline:none;border-color:#1976d2;box-shadow:0 0 0 3px rgba(33,150,243,0.1);}
+.form-grid{display:grid;grid-template-columns: repeat(auto-fit, minmax(180px,1fr));gap:10px;margin-bottom:20px;}
+input{padding:10px;border:1px solid #ddd;border-radius:4px;font-size:14px;}
+input:focus{outline:none;border-color:#4CAF50;}
+input[readonly]{background:#e8f5e9;font-weight:bold;color:#2e7d32;}
+.buttons{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+button{padding:10px 20px;border:none;border-radius:4px;font-size:14px;cursor:pointer;color:white;font-weight:600;}
+.btn-add{background:#4CAF50;} .btn-add:hover{background:#45a049;}
+.btn-delete{background:#f44336;} .btn-delete:hover{background:#da190b;}
+.btn-print{background:#2196F3;} .btn-print:hover{background:#0b7dda;}
+.btn-export{background:#FF9800;} .btn-export:hover{background:#e68900;}
+.btn-offer{background:#9C27B0;} .btn-offer:hover{background:#7B1FA2;}
+.btn-small{padding:5px 10px;font-size:12px;margin:2px;}
+table{width:100%;border-collapse:collapse;margin:20px 0;}
+th,td{padding:10px;border:1px solid #ddd;text-align:left;vertical-align:middle;}
+th{background:#4CAF50;color:white;font-weight:600;}
+tr:hover{background:#f5f5f5;}
+.center{text-align:center;}
+.empty{text-align:center;color:#999;padding:40px;font-style:italic;}
+.status{padding:10px;border-radius:4px;margin:10px 0;font-weight:600;}
+.success{background:#d4edda;color:#155724;}
+.col-artikel{font-size:16px;font-weight:bold;}
+.thumb{width:80px;height:80px;object-fit:cover;border-radius:4px;border:1px solid #ccc;cursor:pointer;}
+.previewModal{display:none;position:fixed;z-index:9999;left:0;top:0;width:100%;height:100%;overflow:auto;background:rgba(0,0,0,0.6);}
+.previewModal-content{background:#fff;margin:50px auto;padding:20px;border-radius:8px;width:95%;max-width:1000px;}
+.close{cursor:pointer;font-size:20px;font-weight:bold;float:right;}
+@media print{.no-print{display:none !important;}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Lager & Angebote
+  <div>
+    <button id="btnSave" class="btn-export">💾 Zwischenspeichern</button>
+    <button id="btnBackup" class="btn-export">📁 Backup</button>
+    <input type="file" id="fileImport" style="display:none">
+    <button id="btnImport" class="btn-export">📂 Import</button>
+  </div>
+</h1>
+
+<div class="search-box no-print">
+<input type="text" id="searchInput" placeholder="🔍 Suche nach Artikel oder Nummer..." />
+</div>
+
+<div id="status" class="no-print"></div>
+
+<div class="form-grid no-print">
+<input type="text" id="inp_artikel" placeholder="Artikelname" />
+<input type="number" id="inp_kartons" placeholder="Anzahl Kartons" min="0" />
+<input type="number" id="inp_stueck" placeholder="Stück/Karton" min="0" />
+<input type="number" id="inp_gesamt" placeholder="Gesamt (auto)" readonly />
+<input type="number" id="inp_multiples" placeholder="Anzahl Paletten" min="1" value="1" />
+</div>
+
+<div class="buttons no-print">
+<button class="btn-add" id="btnAdd">➕ Hinzufügen</button>
+<button class="btn-print" id="btnInventory">📋 Bestandsliste PDF</button>
+<button class="btn-offer" id="btnOffer">📄 Angebot erstellen</button>
+<button class="btn-delete" id="btnClear">🗑️ Alle löschen</button>
+</div>
+
+<table class="print-inventory">
+<thead>
+<tr>
+<th>Bild</th>
+<th>Artikelnummer</th>
+<th class="col-artikel">Artikel</th>
+<th class="center">Kartons</th>
+<th class="center">Stk/Karton</th>
+<th class="center">Gesamt</th>
+<th class="center no-print">Aktionen</th>
+</tr>
+</thead>
+<tbody id="tableBody">
+<tr><td colspan="7" class="empty">Keine Einträge vorhanden</td></tr>
+</tbody>
+</table>
+</div>
+
+<input type="file" id="rowImageInput" accept="image/*" capture="environment" style="display:none">
+
+<!-- Vorschau Modal -->
+<div class="previewModal" id="previewModal">
+  <div class="previewModal-content">
+    <span class="close" id="previewClose">&times;</span>
+    <div id="previewBody"></div>
+    <div style="margin-top:10px;text-align:right;">
+      <button id="downloadPreviewPdf" class="btn-print">PDF herunterladen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image Modal -->
+<div class="previewModal" id="imageModal">
+  <div class="previewModal-content">
+    <span class="close" id="imageClose">&times;</span>
+    <img id="modalImg" src="" style="width:100%;">
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
+<script>
+let data=[];
+const tableBody=document.getElementById('tableBody');
+const status=document.getElementById('status');
+const previewModal=document.getElementById('previewModal');
+const previewBody=document.getElementById('previewBody');
+const downloadPreviewPdf=document.getElementById('downloadPreviewPdf');
+const previewClose=document.getElementById('previewClose');
+const imageModal=document.getElementById('imageModal');
+const modalImg=document.getElementById('modalImg');
+const imageClose=document.getElementById('imageClose');
+const rowImageInput=document.getElementById('rowImageInput');
+
+function esc(str){const d=document.createElement('div'); d.textContent=str; return d.innerHTML;}
+function msg(text){status.innerHTML='<div class="status success">'+text+'</div>'; setTimeout(()=>{status.innerHTML='';},2000);}
+function genBarcode(){return Math.floor(10000+Math.random()*90000).toString();}
+function calc(){document.getElementById('inp_gesamt').value=(parseFloat(document.getElementById('inp_kartons').value)||0)*(parseFloat(document.getElementById('inp_stueck').value)||0);}
+document.getElementById('inp_kartons').addEventListener('input',calc);
+document.getElementById('inp_stueck').addEventListener('input',calc);
+
+// --- HINZUFÜGEN ---
+document.getElementById('btnAdd').addEventListener('click',()=>{
+  let artikel=document.getElementById('inp_artikel').value.trim();
+  if(!artikel){alert('Bitte Artikelname eingeben!'); return;}
+  artikel=artikel.charAt(0).toUpperCase()+artikel.slice(1);
+  const kartons=parseFloat(document.getElementById('inp_kartons').value)||0;
+  const stueck=parseFloat(document.getElementById('inp_stueck').value)||0;
+  const gesamt=kartons*stueck;
+  const multiples=parseInt(document.getElementById('inp_multiples').value)||1;
+  for(let j=0;j<multiples;j++){
+    const barcode=genBarcode();
+    data.push({artikel,kartons,stueck,gesamt,barcode,multiples,multiples,index:j,image:null});
+  }
+  render();
+  saveData();
+  document.getElementById('inp_artikel').value='';
+  document.getElementById('inp_kartons').value='';
+  document.getElementById('inp_stueck').value='';
+  document.getElementById('inp_gesamt').value='';
+  document.getElementById('inp_multiples').value=1;
+  msg('✅ '+multiples+' Einträge hinzugefügt!');
+});
+
+// --- RENDER ---
+function render(filter=''){
+  if(!data.length){tableBody.innerHTML='<tr><td colspan="7" class="empty">Keine Einträge vorhanden</td></tr>'; return;}
+  let html=''; 
+  data.forEach((d,i)=>{
+    if(filter&&!Object.values(d).some(v=>v.toString().toLowerCase().includes(filter.toLowerCase()))) return;
+    html+='<tr>';
+    html+='<td class="center">'+(d.image?'<img src="'+d.image+'" class="thumb" onclick="showImage(\''+d.image+'\')">':'<button onclick="addImage('+i+')">Bild hinzufügen</button>')+'</td>';
+    html+='<td class="center">'+esc(d.barcode)+'</td>';
+    html+='<td class="col-artikel">'+esc(d.artikel)+'</td>';
+    html+='<td class="center">'+d.kartons+'</td>';
+    html+='<td class="center">'+d.stueck+'</td>';
+    html+='<td class="center" style="font-weight:bold;color:#2e7d32">'+d.gesamt+'</td>';
+    html+='<td class="center no-print">';
+    html+='<button class="btn-add btn-small" onclick="editItem('+i+')">Bearbeiten</button>';
+    html+='<button class="btn-delete btn-small" onclick="del('+i+')">Löschen</button>';
+    html+='</td>';
+    html+='</tr>';
+  });
+  tableBody.innerHTML=html;
+}
+
+// --- BILDER ---
+function addImage(i){
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    const video=document.createElement('video');
+    const canvas=document.createElement('canvas');
+    const modal=document.createElement('div');
+    modal.style.position='fixed'; modal.style.top='0'; modal.style.left='0'; modal.style.width='100%'; modal.style.height='100%'; modal.style.background='rgba(0,0,0,0.8)'; modal.style.zIndex='10000'; modal.style.display='flex'; modal.style.flexDirection='column'; modal.style.alignItems='center'; modal.style.justifyContent='center';
+    const btnCapture=document.createElement('button'); btnCapture.innerText='📸 Foto aufnehmen'; btnCapture.style.padding='10px 20px'; btnCapture.style.marginTop='10px';
+    modal.appendChild(video); modal.appendChild(btnCapture); document.body.appendChild(modal);
+    navigator.mediaDevices.getUserMedia({video:true}).then(stream=>{
+      video.srcObject=stream; video.play();
+      btnCapture.onclick=()=>{
+        canvas.width=video.videoWidth; canvas.height=video.videoHeight; canvas.getContext('2d').drawImage(video,0,0);
+        const imgData=canvas.toDataURL('image/png');
+        const multiples=data[i].multiples||1;
+        for(let j=0;j<multiples;j++){
+          if(!data[i+j]) continue; data[i+j].image=imgData;
+        }
+        render(); saveData(); msg('✅ Bild hinzugefügt');
+        stream.getTracks().forEach(track=>track.stop());
+        document.body.removeChild(modal);
+      };
+    }).catch(()=>{rowImageInput.onchange=(e)=>{const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=(evt)=>{const imgData=evt.target.result; const multiples=data[i].multiples||1; for(let j=0;j<multiples;j++){if(!data[i+j]) continue; data[i+j].image=imgData;} render(); saveData(); msg('✅ Bild hinzugefügt'); rowImageInput.value='';}; reader.readAsDataURL(file);}; rowImageInput.click();});
+  } else {rowImageInput.onchange=(e)=>{const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=(evt)=>{const imgData=evt.target.result; const multiples=data[i].multiples||1; for(let j=0;j<multiples;j++){if(!data[i+j]) continue; data[i+j].image=imgData;} render(); saveData(); msg('✅ Bild hinzugefügt'); rowImageInput.value='';}; reader.readAsDataURL(file);}; rowImageInput.click();}
+}
+function showImage(src){modalImg.src=src; imageModal.style.display='block';}
+imageClose.onclick=()=>{imageModal.style.display='none';}
+previewClose.onclick=()=>{previewModal.style.display='none';}
+
+// --- EDIT ---
+function editItem(i){
+  const d=data[i];
+  let a=prompt('Artikelname:',d.artikel); if(!a) return; a=a.charAt(0).toUpperCase()+a.slice(1);
+  let k=parseFloat(prompt('Kartons:',d.kartons)); if(isNaN(k)) k=d.kartons;
+  let s=parseFloat(prompt('Stück/Karton:',d.stueck)); if(isNaN(s)) s=d.stueck;
+  d.artikel=a; d.kartons=k; d.stueck=s; d.gesamt=k*s;
+  render(); saveData(); msg('✅ Eintrag bearbeitet');
+}
+
+// --- DELETE ---
+function del(i){if(confirm('Wirklich löschen?')){data.splice(i,1); render(); saveData(); msg('🗑️ Eintrag gelöscht');}}
+
+// --- SEARCH ---
+document.getElementById('searchInput').addEventListener('input',function(){render(this.value.trim());});
+
+// --- CLEAR ALL ---
+document.getElementById('btnClear').addEventListener('click',()=>{if(confirm('ALLE Einträge löschen?')){data=[]; render(); saveData(); msg('🗑️ Alle gelöscht');}});
+
+// --- SAVE/LOAD ---
+function saveData(){localStorage.setItem('palettenData',JSON.stringify(data)); msg('✅ Zwischengespeichert');}
+document.getElementById('btnSave').addEventListener('click',saveData);
+window.addEventListener('load',()=>{ const saved=localStorage.getItem('palettenData'); if(saved){data=JSON.parse(saved); render();}});
+
+// --- BACKUP ---
+document.getElementById('btnBackup').addEventListener('click',()=>{if(!data.length){alert('Keine Einträge vorhanden!'); return;} const blob=new Blob([JSON.stringify(data)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download="paletten_backup.json"; a.click(); URL.revokeObjectURL(url); msg('✅ Backup erstellt!');});
+
+// --- IMPORT ---
+document.getElementById('btnImport').addEventListener('click',()=>{document.getElementById('fileImport').click();});
+document.getElementById('fileImport').addEventListener('change',(e)=>{const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=function(evt){try{const imported=JSON.parse(evt.target.result); if(Array.isArray(imported)){data=imported; render(); saveData(); msg('✅ Daten importiert!');}else{alert('Ungültige Datei!');}}catch(err){alert('Fehler beim Import!');}}; reader.readAsText(file);});
+
+// --- PREVIEW & PDF ---
+function previewPDF(pdfData,type){
+  previewBody.innerHTML=''; const table=document.createElement('table'); table.style.width='100%';
+  const thead=document.createElement('thead'); const trh=document.createElement('tr');
+  if(type==='angebot'){['Auswahl','Bild','Artikelnummer','Artikel','Kartons','Stk/Karton','Gesamt','Preis/€'].forEach(h=>{const th=document.createElement('th'); th.innerText=h; trh.appendChild(th);});}
+  else{['Bild','Artikelnummer','Artikel','Kartons','Stk/Karton','Gesamt'].forEach(h=>{const th=document.createElement('th'); th.innerText=h; trh.appendChild(th);});}
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody=document.createElement('tbody');
+  pdfData.forEach((d,i)=>{
+    const tr=document.createElement('tr');
+    if(type==='angebot'){const tdCheck=document.createElement('td'); const chk=document.createElement('input'); chk.type='checkbox'; tdCheck.appendChild(chk); tr.appendChild(tdCheck);}
+    const tdImg=document.createElement('td'); if(d.image){const img=document.createElement('img'); img.src=d.image; img.style.width='60px'; img.style.height='60px'; img.style.objectFit='cover'; tdImg.appendChild(img);} tr.appendChild(tdImg);
+    [d.barcode,d.artikel,d.kartons,d.stueck,d.gesamt].forEach(v=>{const td=document.createElement('td'); td.innerText=v; tr.appendChild(td);});
+    if(type==='angebot'){const tdPrice=document.createElement('td'); const inputPrice=document.createElement('input'); inputPrice.type='number'; inputPrice.step='0.01'; inputPrice.style.width='60px'; tdPrice.appendChild(inputPrice); tr.appendChild(tdPrice);}
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody); previewBody.appendChild(table); previewModal.style.display='block';
+  downloadPreviewPdf.onclick=()=>{generatePDF(pdfData,type);}
+}
+
+function generatePDF(pdfData,type){
+  const { jsPDF } = window.jspdf; const doc=new jsPDF();
+  doc.setFontSize(16); doc.text(type==='angebot'?'Angebot':'Bestandsliste',14,20);
+  const rows=pdfData.map(d=>{if(type==='angebot'){return [d.barcode,d.artikel,d.kartons,d.stueck,d.gesamt,d.price||'',d.image||''];} else return [d.barcode,d.artikel,d.kartons,d.stueck,d.gesamt,d.image||''];});
+  doc.autoTable({head:type==='angebot'?[['Artikelnummer','Artikel','Kartons','Stk/Karton','Gesamt','Preis','Bild']]:[['Artikelnummer','Artikel','Kartons','Stk/Karton','Gesamt','Bild']],body:rows,styles:{cellPadding:3,fontSize:10,halign:'center'},headStyles:{fillColor:[76,175,80]},theme:'grid'});
+  doc.save(type==='angebot'?'Angebot.pdf':'Bestandsliste.pdf');
+}
+
+// --- BESTANDSLISTE PDF ---
+document.getElementById('btnInventory').addEventListener('click',()=>{if(!data.length){alert('Keine Einträge!'); return;} previewPDF(data,'bestand');});
+
+// --- ANGEBOT ---
+document.getElementById('btnOffer').addEventListener('click',()=>{
+  if(!data.length){alert('Keine Einträge!'); return;}
+  const offerData=data.map(d=>({...d})); // frische Kopie ohne gespeicherte Preise
+  previewPDF(offerData,'angebot');
+});
+
+render();
+</script>
+</body>
+</html>
